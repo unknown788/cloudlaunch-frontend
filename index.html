@@ -1,0 +1,1878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CloudLaunch Platform</title>
+  <style>
+    /* ── Reset & tokens ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --border:   #30363d;
+      --text:     #e6edf3;
+      --muted:    #8b949e;
+      --accent:   #238636;
+      --accent-h: #2ea043;
+      --danger:   #da3633;
+      --danger-h: #f85149;
+      --warn:     #d29922;
+      --info:     #388bfd;
+      --radius:   8px;
+      --mono:     'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 56px;
+      flex-shrink: 0;
+    }
+    header .logo { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+    header .logo span { color: var(--accent-h); }
+    header .tagline { color: var(--muted); font-size: 12px; }
+    header .spacer { flex: 1; }
+    #vm-status-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--border);
+      color: var(--muted);
+      cursor: default;
+      transition: all 0.3s;
+    }
+    #vm-status-badge.running  { background: #1a4731; color: #3fb950; }
+    #vm-status-badge.stopped  { background: #3d2c00; color: var(--warn); }
+    #vm-status-badge.unknown  { background: var(--border); color: var(--muted); }
+
+    /* ── Tab bar ─────────────────────────────────────────────────── */
+    .tab-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      padding: 0 24px;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .tab-btn {
+      padding: 12px 16px;
+      border: none;
+      background: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn:hover  { color: var(--text); }
+    .tab-btn.active { color: var(--text); border-bottom-color: var(--accent-h); }
+
+    /* ── Main layout ─────────────────────────────────────────────── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      gap: 20px;
+      max-width: 1100px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* ── Tab panels ──────────────────────────────────────────────── */
+    .tab-panel { display: none; flex-direction: column; gap: 16px; }
+    .tab-panel.active { display: flex; }
+
+    /* ── Action bar ──────────────────────────────────────────────── */
+    .action-bar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .btn {
+      padding: 8px 18px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover  { background: var(--border); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn.primary  { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { background: var(--accent-h); }
+    .btn.danger   { background: var(--danger); border-color: var(--danger); color: #fff; }
+    .btn.danger:hover  { background: var(--danger-h); }
+    .btn.info     { background: #0d419d; border-color: var(--info); color: #fff; }
+    .btn.info:hover    { background: var(--info); }
+
+    /* ── Cards ───────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .card-body { padding: 16px; }
+
+    /* ── Terminal ────────────────────────────────────────────────── */
+    #terminal {
+      background: #010409;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.6;
+      padding: 16px;
+      height: 420px;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+    }
+    #terminal .line { white-space: pre-wrap; word-break: break-all; }
+    #terminal .line.ok     { color: #3fb950; }
+    #terminal .line.err    { color: #f85149; }
+    #terminal .line.money  { color: #79c0ff; }
+    #terminal .line.rocket { color: #e3b341; font-weight: 700; }
+    #terminal .line.dim    { color: #484f58; }
+    #terminal .line.cmd    { color: #8b949e; }
+    #terminal .line.info   { color: #58a6ff; }
+    #terminal .cursor      { display: inline-block; width: 8px; height: 14px;
+                              background: var(--text); animation: blink 1s step-end infinite;
+                              vertical-align: text-bottom; margin-left: 2px; }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    .terminal-status {
+      padding: 6px 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      background: #010409;
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 var(--radius) var(--radius);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+    .dot.running  { background: #3fb950; box-shadow: 0 0 6px #3fb95066; animation: pulse 1.5s infinite; }
+    .dot.done     { background: #3fb950; }
+    .dot.error    { background: #f85149; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    @keyframes ttl-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(248,81,73,0)} 50%{box-shadow:0 0 8px 3px rgba(248,81,73,0.45)} }
+
+    /* ── Plan table ──────────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #1c2128; }
+    .type-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .type-compute  { background: #1a4731; color: #3fb950; }
+    .type-network  { background: #0d419d; color: #79c0ff; }
+    .type-security { background: #3d2c00; color: #e3b341; }
+    .type-container{ background: #2d1f3d; color: #bc8cff; }
+
+    /* ── Status grid ─────────────────────────────────────────────── */
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .stat-value { font-size: 18px; font-weight: 700; font-family: var(--mono); }
+    .stat-value.green { color: #3fb950; }
+    .stat-value.yellow{ color: #e3b341; }
+    .stat-value.muted { color: var(--muted); font-size: 14px; }
+
+    /* ── Jobs history ────────────────────────────────────────────── */
+    .job-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .job-row:last-child { border-bottom: none; }
+    .job-op { font-weight: 600; width: 90px; text-transform: capitalize; }
+    .job-id { font-family: var(--mono); font-size: 11px; color: var(--muted); flex: 1; }
+    .job-status-pill {
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .pill-succeeded{ background: #1a4731; color: #3fb950; }
+    .pill-running  { background: #0d419d; color: #79c0ff; }
+    .pill-failed   { background: #3d0000; color: #f85149; }
+    .pill-pending  { background: var(--border); color: var(--muted); }
+    .job-logs-btn { padding: 3px 10px; font-size: 11px; cursor: pointer; }
+
+    /* ── Inline log viewer ───────────────────────────────────────── */
+    .job-logs-detail {
+      display: none;
+      background: #010409;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: #8b949e;
+      padding: 10px 16px;
+      max-height: 180px;
+      overflow-y: auto;
+      border-top: 1px solid var(--border);
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .job-logs-detail.open { display: block; }
+
+    /* ── Config form ─────────────────────────────────────────────── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
+    .field label {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .field input, .field select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus, .field select:focus { border-color: var(--info); }
+
+    /* ── Modal ───────────────────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      max-width: 420px;
+      width: 90%;
+    }
+    .modal h3 { margin-bottom: 12px; }
+    .modal p  { color: var(--muted); font-size: 13px; line-height: 1.6; margin-bottom: 20px; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* ── Cost estimate box ───────────────────────────────────────── */
+    .cost-box {
+      background: #1a1f28;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      display: flex;
+      gap: 32px;
+      flex-wrap: wrap;
+    }
+    .cost-item { display: flex; flex-direction: column; gap: 2px; }
+    .cost-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .cost-value { font-size: 22px; font-weight: 700; font-family: var(--mono); color: #e3b341; }
+    .cost-sub   { font-size: 11px; color: var(--muted); }
+
+    /* ── Utility ─────────────────────────────────────────────────── */
+    .empty-state { color: var(--muted); text-align: center; padding: 32px; font-size: 13px; }
+    .ip-link { color: var(--info); text-decoration: none; font-family: var(--mono); }
+    .ip-link:hover { text-decoration: underline; }
+    .section-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+
+    /* ══════════════════════════════════════════════════════════════
+       WELCOME TAB
+    ══════════════════════════════════════════════════════════════ */
+    .hero {
+      background: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #0d2818 100%);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px 36px;
+      text-align: center;
+    }
+    .hero-emoji { font-size: 52px; margin-bottom: 16px; }
+    .hero h1 { font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 10px; }
+    .hero h1 span { color: #3fb950; }
+    .hero-sub { font-size: 15px; color: var(--muted); line-height: 1.7; max-width: 580px; margin: 0 auto 28px; }
+    .hero-chips { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 28px; }
+    .chip {
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid;
+    }
+    .chip-blue   { background: #0d2d6e; color: #79c0ff; border-color: #1f4c8f; }
+    .chip-green  { background: #0d2818; color: #3fb950; border-color: #1a4731; }
+    .chip-purple { background: #2d1f3d; color: #bc8cff; border-color: #4a2d6e; }
+    .chip-orange { background: #3d2c00; color: #e3b341; border-color: #5c4200; }
+    .chip-red    { background: #3d0000; color: #f85149; border-color: #6d0000; }
+    .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    /* Steps */
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .step-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      position: relative;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .step-card:hover { border-color: #3fb950; transform: translateY(-2px); }
+    .step-num {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: #1a4731;
+      color: #3fb950;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 12px;
+    }
+    .step-icon { font-size: 28px; margin-bottom: 10px; }
+    .step-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+    .step-desc  { font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .step-arrow {
+      position: absolute;
+      right: -14px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--border);
+      font-size: 20px;
+      z-index: 1;
+    }
+
+    /* What's inside */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+    }
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .feature-icon { font-size: 26px; flex-shrink: 0; }
+    .feature-title { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+    .feature-desc  { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+    /* Note box */
+    .note-box {
+      background: #1a1f28;
+      border: 1px solid #30363d;
+      border-left: 3px solid #e3b341;
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .note-box strong { color: #e3b341; }
+
+    /* ══════════════════════════════════════════════════════════════
+       ENGINEERING BLUEPRINT TAB
+    ══════════════════════════════════════════════════════════════ */
+    .blueprint-hero {
+      background: linear-gradient(135deg, #0d1117 0%, #0a1628 50%, #0d1117 100%);
+      border: 1px solid #1f4c8f;
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .blueprint-hero-text h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.5px; }
+    .blueprint-hero-text h2 span { color: #79c0ff; }
+    .blueprint-hero-text p { font-size: 13px; color: var(--muted); line-height: 1.6; max-width: 520px; }
+    .blueprint-badge {
+      padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700;
+      background: #0d2d6e; color: #79c0ff; border: 1px solid #1f4c8f;
+      white-space: nowrap;
+    }
+
+    /* Architecture diagram */
+    .arch-diagram {
+      background: #010409;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      overflow-x: auto;
+    }
+    .arch-diagram h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 24px; }
+    .arch-row { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: wrap; margin-bottom: 12px; }
+    .arch-box {
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: center;
+      min-width: 110px;
+      border: 1px solid;
+    }
+    .arch-box .arch-label { font-size: 10px; font-weight: 400; margin-top: 3px; opacity: 0.75; }
+    .arch-box.browser  { background: #0d2d6e; color: #79c0ff; border-color: #1f4c8f; }
+    .arch-box.api      { background: #1a4731; color: #3fb950; border-color: #2a6347; }
+    .arch-box.worker   { background: #2d1f3d; color: #bc8cff; border-color: #4a2d6e; }
+    .arch-box.azure    { background: #0d2040; color: #58a6ff; border-color: #1a3d6e; }
+    .arch-box.vm       { background: #3d2c00; color: #e3b341; border-color: #5c4200; }
+    .arch-box.state    { background: #3d0000; color: #f85149; border-color: #6d0000; }
+    .arch-box.ws       { background: #1a2a1a; color: #3fb950; border-color: #1a4731; font-size: 11px; }
+    .arch-arrow { color: #30363d; font-size: 18px; padding: 0 6px; font-weight: 700; flex-shrink: 0; }
+    .arch-arrow.down { display: block; text-align: center; color: #30363d; font-size: 18px; margin: 2px auto; }
+    .arch-col { display: flex; flex-direction: column; align-items: center; gap: 0; }
+    .arch-label-outer { font-size: 10px; color: var(--muted); text-align: center; margin-top: 4px; }
+
+    /* Tech stack */
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .stack-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      transition: border-color 0.2s;
+    }
+    .stack-card:hover { border-color: #79c0ff; }
+    .stack-layer { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .stack-name  { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .stack-why   { font-size: 11px; color: var(--muted); line-height: 1.5; }
+    .stack-tag   { display: inline-block; margin-top: 8px; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+
+    /* Design decisions */
+    .decision-list { display: flex; flex-direction: column; gap: 12px; }
+    .decision-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+    .decision-icon { font-size: 22px; }
+    .decision-q { font-weight: 700; font-size: 13px; margin-bottom: 4px; color: #79c0ff; }
+    .decision-a { font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .decision-a code { background: #1c2128; padding: 1px 5px; border-radius: 4px; font-family: var(--mono); font-size: 11px; color: #3fb950; }
+
+    /* Metrics row */
+    .metrics-row {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .metric-card {
+      flex: 1;
+      min-width: 130px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      text-align: center;
+    }
+    .metric-val  { font-size: 28px; font-weight: 800; font-family: var(--mono); color: #3fb950; }
+    .metric-unit { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    /* Code snippet */
+    .code-block {
+      background: #010409;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.7;
+      overflow-x: auto;
+    }
+    .code-block .kw  { color: #ff7b72; }
+    .code-block .fn  { color: #d2a8ff; }
+    .code-block .st  { color: #a5d6ff; }
+    .code-block .cm  { color: #8b949e; }
+    .code-block .nu  { color: #79c0ff; }
+    .code-block .ok  { color: #3fb950; }
+
+    /* Security items */
+    .security-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .sec-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .sec-icon  { font-size: 24px; margin-bottom: 8px; }
+    .sec-title { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+    .sec-desc  { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .sec-val   { font-family: var(--mono); font-size: 11px; color: #3fb950; margin-top: 6px; }
+
+    /* Scalability */
+    .scale-row { display: flex; gap: 0; align-items: stretch; flex-wrap: wrap; }
+    .scale-item {
+      flex: 1;
+      min-width: 150px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 16px;
+      text-align: center;
+    }
+    .scale-item:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+    .scale-item:last-child  { border-radius: 0 var(--radius) var(--radius) 0; }
+    .scale-item + .scale-item { border-left: none; }
+    .scale-now  { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+    .scale-then { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .scale-arrow-right { color: #3fb950; font-size: 11px; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════ HEADER ═══════════════════════════════ -->
+<header>
+  <div class="logo">☁ Cloud<span>Launch</span></div>
+  <div class="tagline">Provision · Deploy · Manage</div>
+  <div class="spacer"></div>
+  <!-- Quota badge — shows remaining budget to visitors -->
+  <div id="quota-badge" title="Remaining provision quota" style="display:none;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:#3d2c00;color:#e3b341;margin-right:8px;cursor:default;">
+    ⚡ <span id="quota-text">? / ?</span> VMs
+  </div>
+  <!-- Auto-destroy countdown — shown once a VM is provisioned -->
+  <div id="ttl-badge" style="display:none;padding:4px 14px;border-radius:20px;font-size:13px;font-weight:700;background:#3d0000;color:#f85149;margin-right:8px;cursor:default;letter-spacing:0.3px;animation:ttl-pulse 2s ease-in-out infinite;">
+    ⏰ Auto-destroying in <span id="ttl-countdown">--:--</span>
+  </div>
+  <div id="vm-status-badge" class="unknown">⬤ No VM</div>
+</header>
+
+<!-- ═══════════════════════ TAB BAR ══════════════════════════════ -->
+<div class="tab-bar">
+  <button class="tab-btn active"  data-tab="welcome">Overview</button>
+  <button class="tab-btn"         data-tab="plan">Resource Plan</button>
+  <button class="tab-btn"         data-tab="ops">Operations</button>
+  <button class="tab-btn"         data-tab="status">Status</button>
+  <button class="tab-btn"         data-tab="jobs">Job History</button>
+  <button class="tab-btn"         data-tab="blueprint" style="color:#79c0ff;">Engineering</button>
+</div>
+
+<!-- ═══════════════════════ MAIN ══════════════════════════════════ -->
+<main>
+
+  <!-- ─────────────────── TAB: WELCOME ──────────────────────────── -->
+  <div class="tab-panel active" id="tab-welcome">
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-emoji">☁️</div>
+      <h1>Cloud<span>Launch</span></h1>
+      <p class="hero-sub">
+        An end-to-end cloud infrastructure automation platform. Provision a real Azure VM,
+        deploy a containerised web application, and observe every operation streamed live —
+        all from a single interface, with no manual cloud console interaction.
+      </p>
+      <div class="hero-chips">
+        <span class="chip chip-blue">Python · FastAPI</span>
+        <span class="chip chip-green">Azure SDK</span>
+        <span class="chip chip-purple">WebSocket Streaming</span>
+        <span class="chip chip-orange">Docker · Nginx</span>
+        <span class="chip chip-red">Auto-Destroy</span>
+      </div>
+      <div class="hero-actions">
+        <button class="btn primary" onclick="document.querySelector('[data-tab=ops]').click()">Try the Demo</button>
+        <button class="btn" style="border-color:#79c0ff;color:#79c0ff;" onclick="document.querySelector('[data-tab=blueprint]').click()">Engineering Details</button>
+      </div>
+    </div>
+
+    <!-- How it works — steps -->
+    <div class="card">
+      <div class="card-header">Workflow — four steps</div>
+      <div class="card-body">
+        <div class="steps-grid">
+
+          <div class="step-card">
+            <div class="step-num">1</div>
+            <div class="step-icon">🚀</div>
+            <div class="step-title">Provision Infrastructure</div>
+            <div class="step-desc">
+              Click <strong>Provision VM</strong> in the Operations tab. The platform creates
+              a complete Azure stack — Virtual Network, NSG, Public IP, NIC, and Ubuntu VM —
+              in approximately 90 seconds. Every step streams to the terminal in real time.
+            </div>
+          </div>
+
+          <div class="step-card">
+            <div class="step-num">2</div>
+            <div class="step-icon">📦</div>
+            <div class="step-title">Deploy the Application</div>
+            <div class="step-desc">
+              Click <strong>Deploy App</strong>. The platform connects via SSH, installs Docker,
+              uploads the application files over SFTP, builds the container image, and starts the
+              Nginx server — fully automated, with live log output throughout.
+            </div>
+          </div>
+
+          <div class="step-card">
+            <div class="step-num">3</div>
+            <div class="step-icon">🌐</div>
+            <div class="step-title">Access the Application</div>
+            <div class="step-desc">
+              Once deployed, a live IP link appears. Open it to reach the application served from
+              your provisioned Azure VM, running inside a Docker container, over the public internet.
+            </div>
+          </div>
+
+          <div class="step-card">
+            <div class="step-num">4</div>
+            <div class="step-icon">�️</div>
+            <div class="step-title">Tear Down</div>
+            <div class="step-desc">
+              Click <strong>Destroy</strong> to delete every Azure resource with a single API call.
+              If you don't, the platform automatically tears everything down after 20 minutes —
+              a server-side timer that cannot be overridden from the browser.
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- What's inside -->
+    <div class="card">
+      <div class="card-header">Platform capabilities</div>
+      <div class="card-body">
+        <div class="feature-grid">
+
+          <div class="feature-card">
+            <div class="feature-icon">🖥️</div>
+            <div>
+              <div class="feature-title">Real Azure Infrastructure</div>
+              <div class="feature-desc">
+                Creates live Azure resources — VMs, Virtual Networks, Network Security Groups,
+                Public IPs, and NICs — via the official Azure SDK. No mocks, no simulators.
+              </div>
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">📡</div>
+            <div>
+              <div class="feature-title">Live Log Streaming</div>
+              <div class="feature-desc">
+                Every log line from background operations is pushed to the dashboard in real time
+                over a persistent WebSocket connection. No polling. No page refreshes.
+              </div>
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">🐳</div>
+            <div>
+              <div class="feature-title">Automated Deployment Pipeline</div>
+              <div class="feature-desc">
+                SSH connection, Docker installation, SFTP file transfer, image build, and container
+                start are all orchestrated programmatically — no shell scripts, no Ansible.
+              </div>
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">🛡️</div>
+            <div>
+              <div class="feature-title">Multi-Layer Abuse Protection</div>
+              <div class="feature-desc">
+                Per-IP rate limiting, a global concurrency cap, an active VM budget, and a
+                mandatory server-side auto-destroy timer operate independently to prevent runaway spend.
+              </div>
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">⌨️</div>
+            <div>
+              <div class="feature-title">Three Interfaces, One Backend</div>
+              <div class="feature-desc">
+                The same operations are available via a Typer CLI, a FastAPI REST API, and this
+                vanilla JS dashboard — all backed by a single provider abstraction layer.
+              </div>
+            </div>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">🔄</div>
+            <div>
+              <div class="feature-title">Full Lifecycle Management</div>
+              <div class="feature-desc">
+                Provision → Deploy → Status → Redeploy → Destroy. The complete infrastructure
+                lifecycle is handled end-to-end, with persistent state across server restarts.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Note -->
+    <div class="note-box">
+      <strong>Live demo note:</strong> This runs against a real Azure subscription.
+      Provisioning takes ~90 seconds; deployment ~2 minutes (Docker setup on a fresh VM).
+      All VM resources are automatically deleted after 20 minutes regardless of user action.
+      All log output is streamed live — nothing is pre-recorded.
+    </div>
+
+  </div><!-- /tab-welcome -->
+
+  <!-- ─────────────────── TAB: PLAN ─────────────────────────────── -->
+  <div class="tab-panel" id="tab-plan">
+
+    <div class="action-bar">
+      <div class="section-title">Resource preview</div>
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn" id="btn-refresh-plan">↺ Refresh</button>
+      <button class="btn primary" id="btn-goto-ops">⚡ Provision →</button>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Resources that will be created</div>
+      <table id="plan-table">
+        <thead>
+          <tr>
+            <th>Resource</th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Detail</th>
+          </tr>
+        </thead>
+        <tbody id="plan-tbody">
+          <tr><td colspan="4" class="empty-state">Loading plan…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="cost-box" id="cost-box">
+      <div class="cost-item">
+        <div class="cost-label">Hourly</div>
+        <div class="cost-value">$0.010</div>
+        <div class="cost-sub">Standard_B1s</div>
+      </div>
+      <div class="cost-item">
+        <div class="cost-label">Monthly est.</div>
+        <div class="cost-value">$7.49</div>
+        <div class="cost-sub">730 hrs / month</div>
+      </div>
+      <div class="cost-item">
+        <div class="cost-label">VM Size</div>
+        <div class="cost-value" id="cost-vm-size" style="font-size:16px;margin-top:4px">Standard_B1s</div>
+        <div class="cost-sub">1 vCPU · 1 GB RAM</div>
+      </div>
+      <div class="cost-item">
+        <div class="cost-label">Region</div>
+        <div class="cost-value" id="cost-region" style="font-size:16px;margin-top:4px">southeastasia</div>
+        <div class="cost-sub">Southeast Asia</div>
+      </div>
+    </div>
+
+  </div><!-- /tab-plan -->
+
+  <!-- ─────────────────── TAB: OPERATIONS ───────────────────────── -->
+  <div class="tab-panel" id="tab-ops">
+
+    <!-- VM already exists notice — shown when state.json is present -->
+    <div id="vm-exists-banner" style="display:none;
+      background: linear-gradient(135deg, #0d2818 0%, #0d3320 100%);
+      border: 1px solid #3fb950;
+      border-radius: var(--radius);
+      padding: 14px 20px;
+      display: none;
+      gap: 14px;
+      align-items: center;
+    ">
+      <div style="font-size:24px;flex-shrink:0;">✅</div>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px;color:#3fb950;margin-bottom:4px;">
+          VM already provisioned
+        </div>
+        <div style="font-size:13px;color:#7ee787;line-height:1.5;">
+          IP: <strong id="vm-exists-ip" style="color:#fff;">—</strong> &nbsp;|&nbsp;
+          Name: <strong id="vm-exists-name" style="color:#fff;">—</strong>
+          &nbsp;— You can <strong>Deploy</strong> your app or <strong>Destroy</strong> when done.
+          <a id="vm-exists-link" href="#" target="_blank" rel="noopener"
+             style="color:#3fb950;margin-left:8px;display:none;">Open app ↗</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cost transparency notice -->
+    <div id="cost-warning-banner" style="
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid #e3b341;
+      border-radius: var(--radius);
+      padding: 12px 18px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    ">
+      This provisions a <strong style="color:#e3b341">real Azure VM</strong> (~$0.01/hr, Standard_B1s).
+      Please click <strong style="color:#e3b341">Destroy</strong> when you're finished.
+      All resources are automatically deleted after <strong style="color:#e3b341">20 minutes</strong>.
+    </div>
+
+    <!-- Config form -->
+    <div class="card">
+      <div class="card-header">⚙ Configuration</div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="field">
+            <label>Cloud Provider</label>
+            <select id="cfg-provider">
+              <option value="azure">Azure</option>
+              <option value="aws" disabled>AWS (coming soon)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>VM Name</label>
+            <input id="cfg-vm-name" value="cloudlaunch-vm" />
+          </div>
+          <div class="field">
+            <label>Resource Group</label>
+            <input id="cfg-rg" value="cloudlaunch-rg" />
+          </div>
+          <div class="field">
+            <label>Region</label>
+            <input id="cfg-location" value="southeastasia" />
+          </div>
+          <div class="field">
+            <label>Admin Username</label>
+            <input id="cfg-username" value="azureuser" />
+          </div>
+          <div class="field">
+            <label>SSH Public Key Path</label>
+            <input id="cfg-ssh-key" value="~/.ssh/id_rsa.pub" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="action-bar">
+      <button class="btn primary" id="btn-provision">🚀 Provision VM</button>
+      <button class="btn info"    id="btn-deploy">📦 Deploy App</button>
+      <button class="btn info"    id="btn-redeploy">🔄 Redeploy App</button>
+      <button class="btn danger"  id="btn-destroy">💀 Destroy</button>
+    </div>
+
+    <!-- Terminal -->
+    <div id="terminal"><span class="cursor"></span></div>
+    <div class="terminal-status">
+      <div class="dot" id="term-dot"></div>
+      <span id="term-label">Idle — select an operation above</span>
+    </div>
+
+  </div><!-- /tab-ops -->
+
+  <!-- ─────────────────── TAB: STATUS ───────────────────────────── -->
+  <div class="tab-panel" id="tab-status">
+    <div class="action-bar">
+      <div class="section-title">Live VM status</div>
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn" id="btn-refresh-status">↺ Refresh now</button>
+    </div>
+    <div class="status-grid" id="status-grid">
+      <div class="stat-card">
+        <div class="stat-label">Power State</div>
+        <div class="stat-value muted" id="stat-state">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Public IP</div>
+        <div class="stat-value muted" id="stat-ip">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">VM Size</div>
+        <div class="stat-value muted" id="stat-size">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Location</div>
+        <div class="stat-value muted" id="stat-location">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">OS Disk</div>
+        <div class="stat-value muted" id="stat-disk">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">VM Name</div>
+        <div class="stat-value muted" id="stat-name">—</div>
+      </div>
+    </div>
+    <div id="status-note" class="empty-state">Provision a VM first, then refresh.</div>
+  </div><!-- /tab-status -->
+
+  <!-- ─────────────────── TAB: JOBS ─────────────────────────────── -->
+  <div class="tab-panel" id="tab-jobs">
+    <div class="action-bar">
+      <div class="section-title">All operations</div>
+      <div class="spacer" style="flex:1"></div>
+      <button class="btn" id="btn-refresh-jobs">↺ Refresh</button>
+    </div>
+    <div class="card" id="jobs-container">
+      <div class="empty-state">No jobs yet. Run an operation first.</div>
+    </div>
+  </div><!-- /tab-jobs -->
+
+  <!-- ─────────────────── TAB: ENGINEERING BLUEPRINT ────────────── -->
+  <div class="tab-panel" id="tab-blueprint">
+
+    <!-- Hero -->
+    <div class="blueprint-hero">
+      <div style="flex:1">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+          <span class="blueprint-badge">Python 3.8</span>
+          <span class="blueprint-badge">FastAPI + Uvicorn</span>
+          <span class="blueprint-badge">Azure SDK</span>
+          <span class="blueprint-badge">WebSocket</span>
+          <span class="blueprint-badge">Docker</span>
+        </div>
+        <div class="blueprint-hero-text">
+          <h2><span>CloudLaunch</span> — Engineering Overview</h2>
+          <p>
+            A cloud infrastructure automation backend built without infrastructure-as-code frameworks.
+            Azure resources are managed via direct SDK calls, SSH automation is handled via Paramiko,
+            and real-time log streaming is implemented over native WebSocket — no third-party abstractions.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Key metrics -->
+    <div class="metrics-row">
+      <div class="metric-card">
+        <div class="metric-val">~900</div>
+        <div class="metric-unit">Lines of Python</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val">6</div>
+        <div class="metric-unit">Azure resources per VM</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val">&lt;200ms</div>
+        <div class="metric-unit">API response time</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val">~90s</div>
+        <div class="metric-unit">End-to-end provision</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val">3</div>
+        <div class="metric-unit">Runtime services</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:-8px;">Runtime services: Python process, Azure API, provisioned VM. No database, no cache, no message queue.</div>
+
+    <!-- Architecture diagram -->
+    <div class="arch-diagram">
+      <h3>System Architecture — Request Flow</h3>
+
+      <!-- Row 1: Client layer -->
+      <div class="arch-row" style="margin-bottom:4px;">
+        <div class="arch-col">
+          <div class="arch-box browser">Browser<div class="arch-label">dashboard.html</div></div>
+          <div class="arch-label-outer">HTTP / WS</div>
+        </div>
+        <div class="arch-arrow">—</div>
+        <div class="arch-col">
+          <div class="arch-box browser">CLI<div class="arch-label">Typer / Rich</div></div>
+          <div class="arch-label-outer">Python calls</div>
+        </div>
+        <div class="arch-arrow">—</div>
+        <div class="arch-col">
+          <div class="arch-box browser">REST Client<div class="arch-label">curl / scripts</div></div>
+          <div class="arch-label-outer">HTTP POST</div>
+        </div>
+      </div>
+
+      <div class="arch-arrow down">↓</div>
+
+      <!-- Row 2: API layer -->
+      <div class="arch-row" style="margin-bottom:4px;">
+        <div class="arch-col" style="flex:1;max-width:460px;">
+          <div class="arch-box api" style="width:100%;min-width:0;">
+            FastAPI / Uvicorn<div class="arch-label">POST /provision · /deploy · /destroy &nbsp;|&nbsp; WS /ws/{job_id}</div>
+          </div>
+          <div class="arch-label-outer">Rate limiter · Concurrency cap · Budget guard (ASGI middleware)</div>
+        </div>
+      </div>
+
+      <div class="arch-arrow down">↓ launch_job() — spawns daemon thread</div>
+
+      <!-- Row 3: Job runner + WS -->
+      <div class="arch-row" style="gap:16px;margin-bottom:4px;">
+        <div class="arch-col">
+          <div class="arch-box worker">Background Thread<div class="arch-label">Sync provider code · queue.Queue</div></div>
+          <div class="arch-label-outer">Blocking I/O (Azure SDK, SSH)</div>
+        </div>
+        <div class="arch-arrow">⟷ run_in_executor</div>
+        <div class="arch-col">
+          <div class="arch-box ws">WebSocket Handler<div class="arch-label">Async drain · heartbeat · log replay</div></div>
+          <div class="arch-label-outer">Async event loop</div>
+        </div>
+      </div>
+
+      <div class="arch-arrow down">↓ Azure SDK calls (blocking, inside thread)</div>
+
+      <!-- Row 4: Azure -->
+      <div class="arch-row" style="gap:16px;margin-bottom:4px;">
+        <div class="arch-col">
+          <div class="arch-box azure">Resource Groups<div class="arch-label">ResourceManagementClient</div></div>
+        </div>
+        <div class="arch-arrow">+</div>
+        <div class="arch-col">
+          <div class="arch-box azure">Virtual Network · NSG · IP<div class="arch-label">NetworkManagementClient</div></div>
+        </div>
+        <div class="arch-arrow">+</div>
+        <div class="arch-col">
+          <div class="arch-box azure">Virtual Machine<div class="arch-label">ComputeManagementClient</div></div>
+        </div>
+      </div>
+
+      <div class="arch-arrow down">↓ VM ready — Paramiko SSH</div>
+
+      <!-- Row 5: VM -->
+      <div class="arch-row" style="gap:16px;">
+        <div class="arch-col">
+          <div class="arch-box vm">Ubuntu 22.04 VM<div class="arch-label">Standard_B1s · Southeast Asia</div></div>
+        </div>
+        <div class="arch-arrow">→ Docker →</div>
+        <div class="arch-col">
+          <div class="arch-box vm">Nginx Container<div class="arch-label">port 80 · --restart always</div></div>
+        </div>
+        <div class="arch-arrow">+</div>
+        <div class="arch-col">
+          <div class="arch-box state">state.json<div class="arch-label">IP · resource group · SSH key</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tech stack -->
+    <div class="card">
+      <div class="card-header">Technology choices</div>
+      <div class="card-body">
+        <div class="stack-grid">
+
+          <div class="stack-card">
+            <div class="stack-layer">API Framework</div>
+            <div class="stack-name">FastAPI</div>
+            <div class="stack-why">Async-native with first-class WebSocket support, Pydantic v2 request validation, and auto-generated OpenAPI docs. No bolt-on WebSocket library needed.</div>
+            <span class="stack-tag chip-green chip">Python 3.8</span>
+          </div>
+
+          <div class="stack-card">
+            <div class="stack-layer">Cloud SDK</div>
+            <div class="stack-name">Azure SDK for Python</div>
+            <div class="stack-why">Direct ARM API calls with no abstraction layer. Full control over resource creation order, error handling, polling, and retry logic.</div>
+            <span class="stack-tag chip-blue chip">azure-mgmt-*</span>
+          </div>
+
+          <div class="stack-card">
+            <div class="stack-layer">SSH / SFTP</div>
+            <div class="stack-name">Paramiko 3.x</div>
+            <div class="stack-why">Pure-Python SSH2 implementation. Handles RSA key auth, remote exec, SFTP uploads, and exit-status checking without spawning subprocesses.</div>
+            <span class="stack-tag chip-purple chip">No subprocess</span>
+          </div>
+
+          <div class="stack-card">
+            <div class="stack-layer">Concurrency Model</div>
+            <div class="stack-name">Threads + asyncio bridge</div>
+            <div class="stack-why">Blocking SDK calls run in daemon threads. <code>run_in_executor()</code> bridges the queue read back to the async event loop — keeps the event loop unblocked.</div>
+            <span class="stack-tag chip-orange chip">No Celery</span>
+          </div>
+
+          <div class="stack-card">
+            <div class="stack-layer">State</div>
+            <div class="stack-name">Flat file (state.json)</div>
+            <div class="stack-why">Appropriate for the access pattern: one write on provision, one delete on destroy, no concurrent writers. Persists across server restarts with no migration overhead.</div>
+            <span class="stack-tag chip-red chip">No DB needed</span>
+          </div>
+
+          <div class="stack-card">
+            <div class="stack-layer">CLI</div>
+            <div class="stack-name">Typer + Rich</div>
+            <div class="stack-why">Type-annotated CLI commands with zero boilerplate. Rich provides coloured tables, panels, and progress spinners — consistent with the dashboard terminal output.</div>
+            <span class="stack-tag chip-green chip">8 commands</span>
+          </div>
+
+          <div class="stack-card">
+            <div class="stack-layer">Frontend</div>
+            <div class="stack-name">Vanilla JS</div>
+            <div class="stack-why">No build step, no dependencies. Served directly as a static file by FastAPI. WebSocket, Fetch API, and DOM manipulation cover everything needed.</div>
+            <span class="stack-tag chip-blue chip">Single HTML file</span>
+          </div>
+
+          <div class="stack-card">
+            <div class="stack-layer">Azure Auth</div>
+            <div class="stack-name">Service Principal</div>
+            <div class="stack-why">Client credentials flow via <code>DefaultAzureCredential</code>. Credentials are loaded from environment variables only — not stored in code or state files.</div>
+            <span class="stack-tag chip-orange chip">12-factor</span>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Design decisions -->
+    <div class="card">
+      <div class="card-header">Design decisions</div>
+      <div class="card-body">
+        <div class="decision-list">
+
+          <div class="decision-item">
+            <div class="decision-icon">🧵</div>
+            <div>
+              <div class="decision-q">Why threads rather than async for the provider code?</div>
+              <div class="decision-a">
+                The Azure SDK and Paramiko are synchronous and blocking — wrapping them in
+                <code>asyncio.to_thread</code> would work mechanically but obscures the blocking nature of the calls.
+                Explicit daemon threads make the concurrency model clear: one thread per job, tied to the
+                operation lifetime. The WebSocket handler re-enters the async world only for the queue read,
+                via <code>run_in_executor()</code>.
+              </div>
+            </div>
+          </div>
+
+          <div class="decision-item">
+            <div class="decision-icon">📄</div>
+            <div>
+              <div class="decision-q">Why a flat file instead of SQLite or a database?</div>
+              <div class="decision-a">
+                There is exactly one write (provision) and one delete (destroy) on state, with no concurrent writers.
+                A database would add a service dependency, connection pooling, and migration scripts with no benefit.
+                The file is written atomically and read fresh on each request. On server restart, the process reads
+                the file and restores its in-memory state correctly.
+              </div>
+            </div>
+          </div>
+
+          <div class="decision-item">
+            <div class="decision-icon">📡</div>
+            <div>
+              <div class="decision-q">How does real-time log streaming work?</div>
+              <div class="decision-a">
+                The provider pushes log lines into an in-process queue as it executes.
+                The WebSocket handler drains that queue on the async event loop via <code>run_in_executor()</code>,
+                which blocks a thread-pool thread rather than the event loop. A heartbeat ping is sent every
+                15 seconds to keep the connection alive. Clients that connect late receive the full log history
+                replayed immediately on join.
+              </div>
+            </div>
+          </div>
+
+          <div class="decision-item">
+            <div class="decision-icon">🛡️</div>
+            <div>
+              <div class="decision-q">How is the public demo protected against abuse?</div>
+              <div class="decision-a">
+                Four independent layers: a per-IP token-bucket rate limiter (4 writes/min, 60 reads/min)
+                implemented as ASGI middleware; a global concurrency cap (1 active job at a time);
+                an active VM budget (maximum 3 provisioned VMs, counter decrements on destroy);
+                and a mandatory server-side auto-destroy timer that fires after 20 minutes and cannot be
+                cancelled from the browser.
+              </div>
+            </div>
+          </div>
+
+          <div class="decision-item">
+            <div class="decision-icon">🔌</div>
+            <div>
+              <div class="decision-q">What is the provider abstraction and why does it exist?</div>
+              <div class="decision-a">
+                An abstract <code>BaseProvider</code> interface defines
+                <code>provision()</code>, <code>deploy()</code>, <code>destroy()</code>, and <code>get_status()</code>.
+                <code>AzureProvider</code> implements it. The API layer calls a factory function and never
+                imports cloud SDK modules directly. Adding a second cloud provider requires one new file —
+                the API, CLI, and dashboard have no changes.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Security model -->
+    <div class="card">
+      <div class="card-header">Security model</div>
+      <div class="card-body">
+        <div class="security-grid">
+
+          <div class="sec-card">
+            <div class="sec-icon">🪣</div>
+            <div class="sec-title">Token Bucket Rate Limiter</div>
+            <div class="sec-desc">Per-IP sliding window. Write operations are capped separately from reads. Runs as ASGI middleware — evaluated before any route handler.</div>
+            <div class="sec-val">4 writes / min · 60 reads / min</div>
+          </div>
+
+          <div class="sec-card">
+            <div class="sec-icon">🚦</div>
+            <div class="sec-title">Global Concurrency Cap</div>
+            <div class="sec-desc">Only one mutating job runs at a time, globally. Tracked with a threading lock and counter. Released automatically when the background thread exits.</div>
+            <div class="sec-val">1 concurrent operation</div>
+          </div>
+
+          <div class="sec-card">
+            <div class="sec-icon">💰</div>
+            <div class="sec-title">Active VM Budget</div>
+            <div class="sec-desc">Provision is rejected if the active VM count reaches the limit. The counter decrements on destroy — it tracks live VMs, not a lifetime total.</div>
+            <div class="sec-val">3 active VMs maximum</div>
+          </div>
+
+          <div class="sec-card">
+            <div class="sec-icon">⏰</div>
+            <div class="sec-title">Mandatory Auto-Destroy</div>
+            <div class="sec-desc">A server-side timer starts after every successful provision. After 20 minutes it runs the full destroy sequence — identical to the manual path — regardless of browser state.</div>
+            <div class="sec-val">20-minute hard limit</div>
+          </div>
+
+          <div class="sec-card">
+            <div class="sec-icon">📋</div>
+            <div class="sec-title">Audit Log</div>
+            <div class="sec-desc">Every mutating operation is written to an append-only audit log with timestamp, source IP, operation type, and parameters. Never exposed via the API.</div>
+            <div class="sec-val">Append-only · server-side only</div>
+          </div>
+
+          <div class="sec-card">
+            <div class="sec-icon">🔑</div>
+            <div class="sec-title">Credential Isolation</div>
+            <div class="sec-desc">Azure service principal credentials are loaded from environment variables only. They are never written to state files, logs, or returned by any API endpoint.</div>
+            <div class="sec-val">DefaultAzureCredential · env vars</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Scalability / What's next -->
+    <div class="card">
+      <div class="card-header">Scaling path — current prototype vs production</div>
+      <div class="card-body">
+        <div class="scale-row">
+          <div class="scale-item">
+            <div class="scale-now">State</div>
+            <div class="scale-then">state.json</div>
+            <div class="scale-arrow-right">→ PostgreSQL</div>
+          </div>
+          <div class="scale-item">
+            <div class="scale-now">Job Queue</div>
+            <div class="scale-then">In-process queue</div>
+            <div class="scale-arrow-right">→ Celery + Redis</div>
+          </div>
+          <div class="scale-item">
+            <div class="scale-now">Workers</div>
+            <div class="scale-then">Daemon threads</div>
+            <div class="scale-arrow-right">→ Worker pool / K8s Jobs</div>
+          </div>
+          <div class="scale-item">
+            <div class="scale-now">Cloud</div>
+            <div class="scale-then">Azure only</div>
+            <div class="scale-arrow-right">→ AWS / GCP providers</div>
+          </div>
+          <div class="scale-item">
+            <div class="scale-now">Auth</div>
+            <div class="scale-then">Open (demo)</div>
+            <div class="scale-arrow-right">→ OAuth2 / JWT</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:stretch;">
+      <a href="https://github.com/unknown788/cloud-cli-tool" target="_blank" rel="noopener"
+         style="flex:1;min-width:220px;text-decoration:none;">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;
+                    padding:20px 24px;display:flex;align-items:center;gap:16px;height:100%;
+                    transition:border-color .2s;cursor:pointer;"
+             onmouseover="this.style.borderColor='#3fb950'"
+             onmouseout="this.style.borderColor='#30363d'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#c9d1d9" style="flex-shrink:0">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57
+                     0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695
+                     -.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99
+                     .105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225
+                     -.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405
+                     c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225
+                     0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3
+                     0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#e6edf3;margin-bottom:3px;">View source on GitHub</div>
+            <div style="font-size:12px;color:#8b949e;">github.com/unknown788/cloud-cli-tool</div>
+          </div>
+          <span style="margin-left:auto;font-size:16px;color:#3fb950;">↗</span>
+        </div>
+      </a>
+
+      <div style="flex:1;min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 24px;">
+        <div style="font-size:13px;font-weight:600;color:#e6edf3;margin-bottom:8px;">About this project</div>
+        <div style="font-size:12px;color:#8b949e;line-height:1.7;">
+          Built as a portfolio project demonstrating backend engineering, cloud infrastructure automation,
+          real-time systems, and security design — typical scope of a backend or platform engineering role.
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /tab-blueprint -->
+
+</main><!-- /main -->
+
+<!-- ═══════════════════════ DESTROY MODAL ════════════════════════ -->
+<div class="modal-overlay" id="destroy-modal">
+  <div class="modal">
+    <h3>Confirm destroy</h3>
+    <p>
+      This deletes the entire Azure resource group and <strong>all</strong> resources inside it.
+      The provision slot will be freed for the next visitor.
+      <br><br>
+      <strong style="color:#3fb950">Thank you for cleaning up.</strong>
+    </p>
+    <div class="modal-actions">
+      <button class="btn" id="modal-cancel">Cancel</button>
+      <button class="btn danger" id="modal-confirm">Destroy</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ SCRIPT ═══════════════════════════════ -->
+<script>
+'use strict';
+
+// ── Config ────────────────────────────────────────────────────────
+const API = 'https://cloud-cli-tool-96d7a0b5f493.herokuapp.com';  // Heroku backend
+
+// ── State ─────────────────────────────────────────────────────────
+let _ttlDestroyAt  = null;   // Date when auto-destroy fires (from quota endpoint)
+let _ttlInterval   = null;   // setInterval handle for the countdown
+let _quotaData     = null;   // last fetched /quota response
+
+// ── Tab routing ───────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'jobs')   loadJobs();
+    if (btn.dataset.tab === 'status') refreshStatus();
+  });
+});
+
+document.getElementById('btn-goto-ops').addEventListener('click', () => {
+  document.querySelector('[data-tab="ops"]').click();
+});
+
+// ── API key helpers — REMOVED (API is now open/keyless) ──────────
+function apiKey() { return ''; }   // stub — kept so fetchJSON doesn't break
+
+// ── Quota / budget display ────────────────────────────────────────
+async function loadQuota() {
+  try {
+    const q = await fetchJSON(`${API}/quota`);
+    _quotaData = q;
+
+    // Quota badge
+    const badge = document.getElementById('quota-badge');
+    const text  = document.getElementById('quota-text');
+    if (q.provisions_limit !== null && q.provisions_limit !== undefined) {
+      const active    = q.provisions_active ?? 0;
+      const remaining = q.provisions_limit - active;
+      text.textContent = `${active} / ${q.provisions_limit}`;
+      badge.style.display = 'inline-block';
+      if (remaining <= 0) {
+        badge.style.background = '#3d0000'; badge.style.color = '#f85149';
+        badge.title = 'All slots occupied — destroy a VM first.';
+      } else if (remaining === 1) {
+        badge.style.background = '#3d2c00'; badge.style.color = '#e3b341';
+        badge.title = `1 slot remaining.`;
+      } else {
+        badge.style.background = '#1a4731'; badge.style.color = '#3fb950';
+        badge.title = `${remaining} slot(s) remaining.`;
+      }
+    }
+
+    // If auto_destroy_at is set, start the countdown from the server epoch
+    if (q.auto_destroy_at) {
+      startTtlCountdown(q.auto_destroy_at * 1000);   // server returns Unix seconds
+    }
+  } catch (_) { /* quota display is best-effort */ }
+}
+
+// ── Auto-destroy countdown ────────────────────────────────────────
+function startTtlCountdown(destroyAt) {
+  _ttlDestroyAt = destroyAt;
+  if (_ttlInterval) clearInterval(_ttlInterval);
+  const badge     = document.getElementById('ttl-badge');
+  const countdown = document.getElementById('ttl-countdown');
+  badge.style.display = 'inline-block';
+
+  function tick() {
+    const diff = Math.max(0, Math.floor((_ttlDestroyAt - Date.now()) / 1000));
+    if (diff === 0) {
+      countdown.textContent = 'NOW';
+      clearInterval(_ttlInterval);
+      badge.style.display = 'none';
+      return;
+    }
+    const m = String(Math.floor(diff / 60)).padStart(2, '0');
+    const s = String(diff % 60).padStart(2, '0');
+    countdown.textContent = `${m}:${s}`;
+  }
+  tick();
+  _ttlInterval = setInterval(tick, 1000);
+}
+
+function stopTtlCountdown() {
+  if (_ttlInterval) clearInterval(_ttlInterval);
+  document.getElementById('ttl-badge').style.display = 'none';
+}
+
+// ── Plan ──────────────────────────────────────────────────────────
+async function loadPlan() {
+  const vm  = document.getElementById('cfg-vm-name')?.value   || 'cloudlaunch-vm';
+  const rg  = document.getElementById('cfg-rg')?.value        || 'cloudlaunch-rg';
+  const loc = document.getElementById('cfg-location')?.value  || 'southeastasia';
+  const url = `${API}/plan?provider=azure&vm_name=${encodeURIComponent(vm)}&location=${encodeURIComponent(loc)}&resource_group=${encodeURIComponent(rg)}`;
+  try {
+    const data = await fetchJSON(url);
+    renderPlan(data);
+  } catch (e) {
+    document.getElementById('plan-tbody').innerHTML =
+      `<tr><td colspan="4" class="empty-state" style="color:#f85149">Failed to load plan: ${e.message}</td></tr>`;
+  }
+}
+
+function renderPlan(data) {
+  const typeColors = {
+    compute: 'type-compute', network: 'type-network',
+    security: 'type-security', container: 'type-container',
+  };
+  const tbody = document.getElementById('plan-tbody');
+  tbody.innerHTML = data.resources.map(r => `
+    <tr>
+      <td>+ ${r.resource}</td>
+      <td><code style="font-family:var(--mono);font-size:12px">${r.name}</code></td>
+      <td><span class="type-badge ${typeColors[r.type] || ''}">${r.type}</span></td>
+      <td style="color:var(--muted)">${r.detail}</td>
+    </tr>
+  `).join('');
+  document.getElementById('cost-region').textContent  = data.location;
+  document.getElementById('cost-vm-size').textContent = data.vm_size;
+}
+
+document.getElementById('btn-refresh-plan').addEventListener('click', loadPlan);
+loadPlan();
+loadQuota();    // load quota on startup
+loadVmState();  // check if VM already exists and lock/unlock buttons accordingly
+
+// ── VM state check — prevents double-provision ─────────────────
+async function loadVmState() {
+  const btnProvision = document.getElementById('btn-provision');
+  const btnDeploy    = document.getElementById('btn-deploy');
+  const btnRedeploy  = document.getElementById('btn-redeploy');
+  const btnDestroy   = document.getElementById('btn-destroy');
+  const banner       = document.getElementById('vm-exists-banner');
+  try {
+    const s = await fetchJSON(`${API}/state`);
+    // VM exists — show banner, disable Provision, enable Deploy/Destroy
+    document.getElementById('vm-exists-ip').textContent   = s.public_ip || '—';
+    document.getElementById('vm-exists-name').textContent = s.vm_name   || '—';
+    const link = document.getElementById('vm-exists-link');
+    if (s.public_ip) {
+      link.href = `http://${s.public_ip}`;
+      link.style.display = 'inline';
+    }
+    banner.style.display = 'flex';
+    btnProvision.disabled = true;
+    btnProvision.title    = 'A VM is already provisioned. Destroy it first.';
+    btnDeploy.disabled    = false;
+    btnRedeploy.disabled  = false;
+    btnDestroy.disabled   = false;
+  } catch (_) {
+    // 404 = no VM — show Provision, hide Deploy/Destroy
+    banner.style.display = 'none';
+    btnProvision.disabled = false;
+    btnProvision.title    = '';
+    btnDeploy.disabled    = true;
+    btnRedeploy.disabled  = true;
+    btnDestroy.disabled   = true;
+  }
+}
+
+// ── Terminal helpers ──────────────────────────────────────────────
+const terminal  = document.getElementById('terminal');
+const termDot   = document.getElementById('term-dot');
+const termLabel = document.getElementById('term-label');
+let   cursor;
+
+function termClear() {
+  terminal.innerHTML = '';
+  cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  terminal.appendChild(cursor);
+}
+
+function termLine(text, cls = '') {
+  const line = document.createElement('div');
+  line.className = 'line ' + cls;
+  line.textContent = text;
+  terminal.insertBefore(line, cursor || null);
+  terminal.scrollTop = terminal.scrollHeight;
+}
+
+function termClassify(text) {
+  if (text.startsWith('✅') || text.includes('ready') || text.includes('complete')) return 'ok';
+  if (text.startsWith('❌') || text.toLowerCase().includes('error') || text.toLowerCase().includes('fail')) return 'err';
+  if (text.startsWith('🎉')) return 'rocket';
+  if (text.startsWith('⏰') || text.startsWith('⚠️')) return 'err';
+  if (text.startsWith('  $') || text.startsWith('    ')) return 'cmd';
+  if (text.startsWith('🔗') || text.startsWith('⚙') || text.startsWith('🔥') || text.startsWith('📋') || text.startsWith('ℹ️')) return 'info';
+  return '';
+}
+
+function setTermStatus(state) {
+  termDot.className = 'dot ' + state;
+  const labels = { running: 'Running…', done: 'Completed ✓', error: 'Failed ✗', '': 'Idle — select an operation above' };
+  termLabel.textContent = labels[state] ?? state;
+}
+
+termClear();
+
+// ── Generic fetch helper (injects X-API-Key when key present) ─────
+async function fetchJSON(url, opts = {}) {
+  const key = apiKey();
+  if (key && !(opts.headers?.['X-API-Key'])) {
+    opts.headers = { ...(opts.headers || {}), 'X-API-Key': key };
+  }
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`;
+    try { const b = await res.json(); detail = b.detail || detail; } catch (_) {}
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+// ── WebSocket streaming ───────────────────────────────────────────
+function streamJob(jobId, onResult) {
+  const proto = 'wss';
+  const host  = 'cloud-cli-tool-96d7a0b5f493.herokuapp.com';
+  const ws    = new WebSocket(`${proto}://${host}/ws/${jobId}`);
+  setTermStatus('running');
+
+  ws.onmessage = (evt) => {
+    const frame = JSON.parse(evt.data);
+    switch (frame.type) {
+      case 'log':
+        termLine(frame.data, termClassify(frame.data));
+        break;
+      case 'status':
+        if (frame.data !== 'running')
+          termLine(`── status: ${frame.data} ──`, frame.data === 'succeeded' ? 'ok' : 'err');
+        break;
+      case 'result':
+        if (frame.data?.public_ip) {
+          const ip = frame.data.public_ip;
+          // Clickable IP link in terminal
+          const link = document.createElement('div');
+          link.className = 'line rocket';
+          link.innerHTML = `🎉 VM is live at <a class="ip-link" href="http://${ip}" target="_blank" rel="noopener">http://${ip} ↗</a>`;
+          terminal.insertBefore(link, cursor || null);
+          terminal.scrollTop = terminal.scrollHeight;
+          updateBadge('running');
+          refreshStatus();
+          // Refresh quota — this will pick up auto_destroy_at and start the countdown
+          loadQuota();
+        }
+        if (onResult) onResult(frame.data);
+        break;
+      case 'error':
+        termLine(`❌ ${frame.data}`, 'err');
+        break;
+      case 'ping':
+        termLine('· · ·', 'dim');
+        break;
+      case 'done':
+        setTermStatus(document.querySelector('#terminal .line.err') ? 'error' : 'done');
+        loadJobs();
+        loadVmState();  // re-sync buttons: provision done → lock Provision, destroy done → unlock it
+        ws.close();
+        break;
+    }
+  };
+
+  ws.onerror = () => { termLine('❌ WebSocket connection error', 'err'); setTermStatus('error'); };
+  ws.onclose = (evt) => {
+    if (evt.code === 4004) {
+      termLine('⚠️  Job not found — the server was restarted while this operation was running.', 'err');
+      termLine('   The VM may still exist in Azure. Check the banner above or hit Destroy.', 'err');
+      setTermStatus('error');
+      disableButtons(false);  // re-enable so user can destroy
+    }
+  };
+}
+
+// ── Launch operation ──────────────────────────────────────────────
+async function runOperation(endpoint, body = {}, onResult) {
+  termClear();
+  termLine(`▶  POST ${endpoint}`, 'dim');
+  setTermStatus('running');
+  disableButtons(true);
+
+  try {
+    const job = await fetchJSON(`${API}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    termLine(`   job_id: ${job.job_id}`, 'dim');
+    termLine(`   status: ${job.status}`, 'dim');
+    termLine('', '');
+    streamJob(job.job_id, onResult);
+  } catch (e) {
+    termLine(`❌ ${e.message}`, 'err');
+    setTermStatus('error');
+    showToast(e.message, 'error');
+  } finally {
+    disableButtons(false);
+  }
+}
+
+function getConfig() {
+  return {
+    provider:       document.getElementById('cfg-provider').value,
+    vm_name:        document.getElementById('cfg-vm-name').value,
+    resource_group: document.getElementById('cfg-rg').value,
+    location:       document.getElementById('cfg-location').value,
+    admin_username: document.getElementById('cfg-username').value,
+    ssh_key_path:   document.getElementById('cfg-ssh-key').value,
+  };
+}
+
+// ── Button wiring ──────────────────────────────────────────────────
+document.getElementById('btn-provision').addEventListener('click', () => {
+  runOperation('/provision', getConfig());
+});
+document.getElementById('btn-deploy').addEventListener('click', () => {
+  runOperation('/deploy', { provider: getConfig().provider });
+});
+document.getElementById('btn-redeploy').addEventListener('click', () => {
+  runOperation('/deploy', { provider: getConfig().provider });
+});
+document.getElementById('btn-destroy').addEventListener('click', () => {
+  document.getElementById('destroy-modal').classList.add('open');
+});
+document.getElementById('modal-cancel').addEventListener('click', () => {
+  document.getElementById('destroy-modal').classList.remove('open');
+});
+document.getElementById('modal-confirm').addEventListener('click', () => {
+  document.getElementById('destroy-modal').classList.remove('open');
+  runOperation('/destroy', { provider: getConfig().provider }, () => stopTtlCountdown());
+});
+
+function disableButtons(disabled) {
+  // During an operation lock all buttons. On release, loadVmState() will
+  // re-apply the correct per-button state (Provision locked if VM exists, etc.)
+  ['btn-provision','btn-deploy','btn-redeploy','btn-destroy'].forEach(id => {
+    document.getElementById(id).disabled = disabled;
+  });
+  if (!disabled) loadVmState();  // re-sync button states with server reality
+}
+
+// ── Toast notifications ────────────────────────────────────────────
+function showToast(msg, type = 'info') {
+  const t = document.createElement('div');
+  t.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:200;padding:12px 18px;
+    border-radius:8px;font-size:13px;max-width:340px;word-break:break-word;
+    background:${type === 'error' ? '#3d0000' : '#1a4731'};
+    border:1px solid ${type === 'error' ? '#f85149' : '#3fb950'};
+    color:${type === 'error' ? '#f85149' : '#3fb950'};`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 5000);
+}
+
+// ── Status tab ─────────────────────────────────────────────────────
+async function refreshStatus() {
+  const provider = document.getElementById('cfg-provider')?.value || 'azure';
+  try {
+    const s = await fetchJSON(`${API}/status?provider=${provider}`);
+    document.getElementById('status-note').style.display = 'none';
+
+    const stateEl = document.getElementById('stat-state');
+    stateEl.textContent = s.state;
+    stateEl.className   = 'stat-value ' + (s.state === 'running' ? 'green' : 'yellow');
+
+    document.getElementById('stat-size').textContent     = s.vm_size   ?? '—';
+    document.getElementById('stat-location').textContent = s.location  ?? '—';
+    document.getElementById('stat-disk').textContent     = s.os_disk_size_gb ? s.os_disk_size_gb + ' GB' : '—';
+    document.getElementById('stat-name').textContent     = s.vm_name   ?? '—';
+
+    // Clickable IP link
+    const ipEl = document.getElementById('stat-ip');
+    if (s.state === 'running' && s.public_ip) {
+      ipEl.innerHTML = `<a class="ip-link" href="http://${s.public_ip}" target="_blank" rel="noopener">${s.public_ip} ↗</a>`;
+    } else {
+      ipEl.textContent = s.public_ip ?? '—';
+      ipEl.className   = 'stat-value muted';
+    }
+
+    updateBadge(s.state);
+  } catch (_) {
+    document.getElementById('status-note').style.display = 'block';
+    document.getElementById('status-note').textContent   = 'No VM state found. Provision a VM first.';
+    updateBadge('unknown');
+  }
+}
+
+function updateBadge(state) {
+  const badge = document.getElementById('vm-status-badge');
+  badge.className = state;
+  const labels = { running: '⬤ Running', stopped: '⬤ Stopped', deallocated: '⬤ Deallocated', unknown: '⬤ No VM' };
+  badge.textContent = labels[state] ?? `⬤ ${state}`;
+}
+
+document.getElementById('btn-refresh-status').addEventListener('click', refreshStatus);
+setInterval(refreshStatus, 30000);
+refreshStatus();
+
+// ── Jobs tab ───────────────────────────────────────────────────────
+async function loadJobs() {
+  try {
+    const jobs = await fetchJSON(`${API}/jobs`);
+    renderJobs(jobs);
+  } catch (e) {
+    document.getElementById('jobs-container').innerHTML =
+      `<div class="empty-state" style="color:#f85149">Failed to load jobs: ${e.message}</div>`;
+  }
+}
+
+function renderJobs(jobs) {
+  const container = document.getElementById('jobs-container');
+  if (!jobs.length) {
+    container.innerHTML = '<div class="empty-state">No jobs yet. Run an operation first.</div>';
+    return;
+  }
+  container.innerHTML = jobs.map(j => {
+    const pillClass = {
+      succeeded: 'pill-succeeded', running: 'pill-running',
+      failed: 'pill-failed', pending: 'pill-pending',
+    }[j.status] || 'pill-pending';
+    const logLines = (j.logs || []).join('\n') || '(no logs)';
+    return `
+      <div>
+        <div class="job-row">
+          <div class="job-op">${j.operation || 'operation'}</div>
+          <div class="job-id">${j.job_id}</div>
+          <div class="job-status-pill ${pillClass}">${j.status}</div>
+          <button class="btn job-logs-btn" onclick="toggleLogs('${j.job_id}')">logs</button>
+        </div>
+        <div class="job-logs-detail" id="logs-${j.job_id}">${escapeHtml(logLines)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleLogs(jobId) {
+  document.getElementById('logs-' + jobId).classList.toggle('open');
+}
+
+function escapeHtml(text) {
+  return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+document.getElementById('btn-refresh-jobs').addEventListener('click', loadJobs);
+</script>
+
+</body>
+</html>
